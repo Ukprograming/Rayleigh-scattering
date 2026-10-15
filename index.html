@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101f31">
+  <title>レイリー散乱</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="model.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main class="app">
+    <header><h1>レイリー散乱</h1></header>
+    <nav class="steps" aria-label="観察するステップ">
+      <button class="step active" data-step="0" aria-pressed="true"><span>1</span> 電荷の放射</button>
+      <button class="step" data-step="1" aria-pressed="false"><span>2</span> 光による振動</button>
+      <button class="step" data-step="2" aria-pressed="false"><span>3</span> 波長と散乱</button>
+    </nav>
+    <section class="stage" aria-label="シミュレーション">
+      <canvas id="scene" role="img" aria-label="振動する負電荷から電磁波が広がる模式図"></canvas>
+      <div id="comparison" class="comparison" hidden>
+        <div class="comparison-pane"><span class="wave-label reference">赤 650 nm</span><div class="strength"><span class="bar-track"><span class="bar reference-bar"></span></span><span>1.00</span></div></div>
+        <div class="comparison-pane"><span class="wave-label" id="selected-wave">450 nm</span><div class="strength"><span class="bar-track"><span id="selected-bar" class="bar"></span></span><output id="intensity">4.35</output></div></div>
+        <span class="strength-label">散乱の強さ（赤 = 1）</span>
+      </div>
+      <span class="model-label">模式図</span>
+    </section>
+    <section class="controls" aria-label="操作">
+      <div class="wavelength-control" id="wavelength-control" hidden><label for="wavelength">波長 <output id="wavelength-value" for="wavelength">450 nm</output></label><input id="wavelength" type="range" min="380" max="750" step="5" value="450"></div>
+      <div class="buttons"><button id="play" class="primary" aria-label="一時停止">一時停止</button><button id="source" class="secondary" aria-pressed="true">振動を止める</button></div>
+    </section>
+  </main>
+</body>
+</html>
