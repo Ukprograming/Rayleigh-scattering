@@ -76,9 +76,28 @@
     return window.Radiation3D.draw(ctx,{cx,cy,size,...camera,color:state.step===0?[243,199,122]:M.color(wavelength),phase,on:state.source,signals:state.signals,red,time:state.time,speed:C/size,charge:state.step===0,probes:state.step===0&&size>55,drawSource:state.step!==0?view=>dipole3D(view,phase,size):undefined});
   }
   function dipole3D(view,phase,size){
-    const p=view.project([0,state.source?-Math.sin(phase)*.24:0,0]),c=view.project([0,0,0]);
-    ctx.beginPath();ctx.fillStyle='rgba(114,225,222,.16)';ctx.strokeStyle='#72e1de';ctx.lineWidth=1.4;ctx.ellipse(p.x,p.y,size*.14,size*.12,0,0,TAU);ctx.fill();ctx.stroke();
-    disk(c.x,c.y,Math.max(5,size*.038),'#f3c77a','+');text('−',p.x,p.y+(p.y>=c.y?size*.14:-size*.1),'#72e1de',Math.max(12,size*.085));
+    const field=state.source?Math.sin(phase):0;
+    const nucleus=view.project([0,0,0]);
+    const density=view.project([0,-field*.16,0]);
+    // Two overlapping, soft density profiles keep the nucleus enclosed while
+    // the denser side follows the electric force. Neither has a hard outline.
+    function cloud(p,r,opacity){
+      const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,r);
+      g.addColorStop(0,rgb([114,225,222],opacity));
+      g.addColorStop(.28,rgb([114,225,222],opacity*.88));
+      g.addColorStop(.58,rgb([114,225,222],opacity*.4));
+      g.addColorStop(1,rgb([114,225,222],0));
+      ctx.fillStyle=g;ctx.beginPath();ctx.arc(p.x,p.y,r,0,TAU);ctx.fill();
+    }
+    cloud(nucleus,size*.48,.23);
+    cloud(density,size*.39,.76);
+    // Embed the negative sign in the cloud, away from the fixed nucleus.
+    const sign=view.project([.22,-field*.16,0]);
+    line(sign.x-3,sign.y,sign.x+3,sign.y,'rgba(176,255,247,.8)',1.5);
+    const r=Math.max(5,Math.min(10,size*.065));
+    disk(nucleus.x,nucleus.y,r,'#f3c77a');
+    line(nucleus.x-r*.45,nucleus.y,nucleus.x+r*.45,nucleus.y,'#513d20',1.3);
+    line(nucleus.x,nucleus.y-r*.45,nucleus.x,nucleus.y+r*.45,'#513d20',1.3);
   }
   function incident3D(view,phase,wavelength,extent){
     ctx.beginPath();ctx.strokeStyle=rgb(M.color(wavelength),.9);ctx.lineWidth=2;
@@ -86,11 +105,12 @@
   }
   function drawSingle(){
     const size=Math.max(15,Math.min(width*.24,(height-48)*.26)),cx=width*.5,cy=34+(height-34)*.52;
+    const incoming={size,project:p=>window.Radiation3D.project(p,camera.yaw,camera.pitch,size,cx,cy)};
+    if(state.step===1&&state.source)incident3D(incoming,state.phase,450,Math.min(1.9,width/size*.46));
     const view=drawRadiator(cx,cy,size,450,state.phase);view.size=size;
     if(state.step===1){
       if(state.source){
-        incident3D(view,state.phase,450,Math.min(1.9,width/size*.46));
-        const a=view.project([-.43,0,0]),b=view.project([-.43,Math.sin(state.phase)*.36,0]);arrow(a.x,a.y,b.x,b.y,'#f3c77a');
+        const a=view.project([-.65,0,0]),b=view.project([-.65,Math.sin(state.phase)*.36,0]);arrow(a.x,a.y,b.x,b.y,'#f3c77a');
       }
     }
   }
@@ -102,8 +122,9 @@
       const size=Math.max(9,Math.min(paneW*.24,(paneH-64)*.26));
       const phase=i===0?TAU*.6*550/650*state.time:state.phase;
       ctx.save();ctx.beginPath();ctx.rect(left,top,paneW,paneH);ctx.clip();
-      const view=drawRadiator(left+cx,top+cy,size,lambda,phase,i===0);view.size=size;
-      incident3D(view,phase,lambda,Math.min(1.9,paneW/size*.44));ctx.restore();
+      const incoming={size,project:p=>window.Radiation3D.project(p,camera.yaw,camera.pitch,size,left+cx,top+cy)};
+      incident3D(incoming,phase,lambda,Math.min(1.9,paneW/size*.44));
+      drawRadiator(left+cx,top+cy,size,lambda,phase,i===0);ctx.restore();
     });
   }
   function draw(){if(!width||!height)return;ctx.clearRect(0,0,width,height);ctx.fillStyle='#101f31';ctx.fillRect(0,0,width,height);state.step===2?drawComparison():drawSingle();}

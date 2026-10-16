@@ -55,7 +55,7 @@
     const at=p=>project(p,yaw,pitch,size,cx,cy);
     const top=at([0,1.58,0]),bottom=at([0,-1.58,0]);
     ctx.beginPath();ctx.moveTo(top.x,top.y);ctx.lineTo(bottom.x,bottom.y);ctx.strokeStyle='#425c70';ctx.setLineDash([4,6]);ctx.lineWidth=1;ctx.stroke();ctx.setLineDash([]);
-    const center=at([0,on?Math.sin(phase)*.24*(charge?1:-1):0,0]);
+    const center=at([0,on?Math.sin(phase)*(charge?.24:-.12):0,0]);
     const items=wavefrontSegments(options).map(segment=>({...segment,kind:'wavefront'}));
     items.push({kind:'source',z:center.z});
     ctx.save();ctx.lineCap='round';
