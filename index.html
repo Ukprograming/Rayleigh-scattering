@@ -7,6 +7,7 @@
   <title>レイリー散乱</title>
   <link rel="stylesheet" href="style.css">
   <script src="model.js" defer></script>
+  <script src="radiation-3d.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -18,7 +19,10 @@
       <button class="step" data-step="2" aria-pressed="false"><span>3</span> 波長と散乱</button>
     </nav>
     <section class="stage" aria-label="シミュレーション">
-      <canvas id="scene" role="img" aria-label="振動する負電荷から電磁波が広がる模式図"></canvas>
+      <canvas id="scene" role="img" tabindex="0" aria-label="ドラッグまたは矢印キーで回転できる、放射の方向分布の3D模式図"></canvas>
+      <span class="view-label" id="view-label">放射の方向分布</span>
+      <span class="rotate-hint" id="rotate-hint">ドラッグで回転</span>
+      <div class="emission-strength" id="emission-strength"><span>放射強度</span><output id="emission-value" aria-live="polite">1.00 倍</output><span class="emission-track"><span id="emission-bar"></span></span><small>初期設定 = 1</small></div>
       <div id="comparison" class="comparison" hidden>
         <div class="comparison-pane"><span class="wave-label reference">赤 650 nm</span><div class="strength"><span class="bar-track"><span class="bar reference-bar"></span></span><span>1.00</span></div></div>
         <div class="comparison-pane"><span class="wave-label" id="selected-wave">450 nm</span><div class="strength"><span class="bar-track"><span id="selected-bar" class="bar"></span></span><output id="intensity">4.35</output></div></div>
@@ -27,6 +31,7 @@
       <span class="model-label">模式図</span>
     </section>
     <section class="controls" aria-label="操作">
+      <div class="frequency-control" id="frequency-control"><label for="frequency">振動の速さ <output id="frequency-value" for="frequency">1.0 倍</output></label><input id="frequency" type="range" min="0.5" max="2" step="0.1" value="1"></div>
       <div class="wavelength-control" id="wavelength-control" hidden><label for="wavelength">波長 <output id="wavelength-value" for="wavelength">450 nm</output></label><input id="wavelength" type="range" min="380" max="750" step="5" value="450"></div>
       <div class="buttons"><button id="play" class="primary" aria-label="一時停止">一時停止</button><button id="source" class="secondary" aria-pressed="true">振動を止める</button></div>
     </section>

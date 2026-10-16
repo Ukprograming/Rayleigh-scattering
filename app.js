@@ -3,22 +3,26 @@
   const $ = id => document.getElementById(id), M = window.RayleighModel;
   const canvas = $('scene'), ctx = canvas.getContext('2d'), stage = document.querySelector('.stage');
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const state = {step:0, playing:!reducedMotion, time:0, phase:0, wavelength:450, source:true, wavefronts:[], redWavefronts:[]};
+  const state = {step:0, playing:!reducedMotion, time:0, phase:0, wavelength:450, frequency:1, source:true,signals:[]};
+  const camera={yaw:.45,pitch:.38};
   const TAU = Math.PI*2, DT = 1/120, C = 88;
   let width=0, height=0, last=0, accumulator=0;
   function resetTime(){
-    state.time=0;state.phase=0;state.wavefronts=[];state.redWavefronts=[];accumulator=0;
+    state.time=0;state.phase=0;state.signals=[];accumulator=0;
     // A developed pattern is visible even when reduced motion starts paused.
-    for(let i=0;i<360;i++)tick(DT);
+    for(let i=0;i<1440;i++)tick(DT);
   }
   function selectStep(step){
     state.step=step;state.source=true;state.wavelength=450;$('wavelength').value=450;resetTime();
     document.querySelectorAll('[data-step]').forEach((b,i)=>{b.classList.toggle('active',i===step);b.setAttribute('aria-pressed',String(i===step));});
-    $('wavelength-control').hidden=step!==2;$('comparison').hidden=step!==2;$('source').hidden=step===2;
+    $('frequency-control').hidden=step!==0;$('wavelength-control').hidden=step!==2;$('comparison').hidden=step!==2;$('source').hidden=step===2;
+    $('view-label').hidden=step===2;$('rotate-hint').hidden=step===2;
+    $('emission-strength').hidden=step!==0;
+    $('view-label').textContent=step===0?'角度は振動軸から':'光の放射';
     canvas.setAttribute('aria-label',[
-      '上下に振動する負電荷から電磁波が広がる模式図',
-      '光の電場と逆向きに電子分布がずれ、電気双極子が振動して電磁波を放射する模式図',
-      '同じ強さの入射光について、赤650 nmと選択した波長の双極子振動と散乱を比較する模式図'
+      '振動する負電荷から光が外向きに伝わる3D模式図。振動軸に垂直な90度方向が最大、45度で半分、軸上の0度ではゼロ。ドラッグまたは矢印キーで回転、Homeキーで向きを戻します',
+      '光の電場と逆向きに電子分布がずれ、双極子が振動して放射する3D模式図。ドラッグまたは矢印キーで回転できます',
+      '同じ強さの入射光について、赤650 nmと選択した波長の双極子振動と散乱を比較する3D模式図。ドラッグまたは矢印キーで回転できます'
     ][step]);updateUI();draw();
   }
   function updateUI(){
@@ -26,6 +30,10 @@
     $('source').setAttribute('aria-pressed',String(state.source));
     $('source').textContent=state.step===0?(state.source?'振動を止める':'振動させる'):(state.source?'光を切る':'光を当てる');
     $('wavelength-value').textContent=`${state.wavelength} nm`;
+    $('frequency-value').textContent=`${state.frequency.toFixed(1)} 倍`;
+    const power=state.source?M.dipolePower(1,state.frequency):0;
+    $('emission-value').textContent=`${power.toFixed(2)} 倍`;
+    $('emission-bar').style.width=`${100*power/16}%`;
     const color=`rgb(${M.color(state.wavelength)})`;
     $('selected-wave').textContent=`${state.wavelength} nm`;$('selected-wave').style.color=color;
     $('intensity').textContent=M.relativeIntensity(state.wavelength).toFixed(2);
@@ -36,18 +44,24 @@
   $('play').addEventListener('click',()=>{state.playing=!state.playing;accumulator=0;updateUI();});
   $('source').addEventListener('click',()=>{state.source=!state.source;updateUI();draw();});
   $('wavelength').addEventListener('input',e=>{state.wavelength=Number(e.target.value);resetTime();updateUI();draw();});
+  $('frequency').addEventListener('input',e=>{state.frequency=Number(e.target.value);updateUI();draw();});
+  let drag=null;
+  canvas.addEventListener('pointerdown',e=>{if(!e.isPrimary||e.button!==0)return;drag={id:e.pointerId,x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);});
+  canvas.addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;camera.yaw+=(e.clientX-drag.x)*.008;camera.pitch=Math.max(-1.48,Math.min(1.48,camera.pitch+(e.clientY-drag.y)*.008));drag.x=e.clientX;drag.y=e.clientY;draw();});
+  const endDrag=e=>{if(drag?.id===e.pointerId)drag=null;};
+  canvas.addEventListener('pointerup',endDrag);canvas.addEventListener('pointercancel',endDrag);canvas.addEventListener('lostpointercapture',endDrag);
+  canvas.addEventListener('keydown',e=>{
+    if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home'].includes(e.key))return;e.preventDefault();
+    if(e.key==='Home'){camera.yaw=.45;camera.pitch=.38;}
+    if(e.key==='ArrowLeft')camera.yaw-=.15;if(e.key==='ArrowRight')camera.yaw+=.15;
+    if(e.key==='ArrowUp')camera.pitch=Math.max(-1.48,camera.pitch-.15);if(e.key==='ArrowDown')camera.pitch=Math.min(1.48,camera.pitch+.15);draw();
+  });
   function tick(dt){
-    const oldTime=state.time,oldPhase=state.phase;state.time+=dt;
-    const f=state.step===0?1:550/state.wavelength;state.phase+=TAU*.6*f*dt;
-    function emit(fronts,before,after,peak,enabled){
-      const n=Math.floor((after-Math.PI/2)/Math.PI);
-      if(enabled&&n>Math.floor((before-Math.PI/2)/Math.PI)){
-        const crossing=Math.PI/2+n*Math.PI;fronts.push({t:oldTime+dt*(crossing-before)/(after-before),strength:peak});
-      }
-      while(fronts.length&&state.time-fronts[0].t>20)fronts.shift();
-    }
-    emit(state.wavefronts,oldPhase,state.phase,f*f,state.source);
-    const redOmega=TAU*.6*550/650;emit(state.redWavefronts,redOmega*oldTime,redOmega*state.time,(550/650)**2,true);
+    state.time+=dt;
+    const f=state.step===0?state.frequency:550/state.wavelength;state.phase+=TAU*.6*f*dt;
+    const redOmega=TAU*.6*550/650;
+    state.signals.push({t:state.time,field:state.source?f*f*Math.sin(state.phase):0,power:state.source?f**4:0,red:(550/650)**2*Math.sin(redOmega*state.time),redPower:(550/650)**4});
+    if(state.signals.length>3000)state.signals.splice(0,120);
   }
   const rgb=(color,a=1)=>`rgba(${color[0]},${color[1]},${color[2]},${a})`;
   function line(x1,y1,x2,y2,color,w=1){ctx.beginPath();ctx.strokeStyle=color;ctx.lineWidth=w;ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();}
@@ -58,51 +72,38 @@
     ctx.beginPath();ctx.fillStyle=color;ctx.moveTo(x2,y2);ctx.lineTo(x2-len*Math.cos(a-.5),y2-len*Math.sin(a-.5));ctx.lineTo(x2-len*Math.cos(a+.5),y2-len*Math.sin(a+.5));ctx.closePath();ctx.fill();
   }
   function disk(x,y,r,color,sign){ctx.beginPath();ctx.fillStyle=color;ctx.arc(x,y,r,0,TAU);ctx.fill();if(sign)text(sign,x,y+5,'#102436',17);}
-  function radiation(cx,cy,radius,color,red=false){
-    // Successive extrema propagate outwards; the axial radiation is zero.
-    for(const front of (red?state.redWavefronts:state.wavefronts)){
-      const r=(state.time-front.t)*C;if(r<30||r>radius)continue;
-      const alpha=Math.min(.9,.25+front.strength*.27)*Math.min(1,190/r)*Math.min(1,(radius-r)/30)*Math.min(1,(r-30)/12);
-      for(let a=0;a<TAU;a+=TAU/48){
-        const intensity=Math.cos(a+TAU/96)**2;if(intensity<.025)continue;
-        ctx.lineWidth=2;ctx.strokeStyle=rgb(color,alpha*intensity);ctx.beginPath();ctx.arc(cx,cy,r,a,a+TAU/48+.005);ctx.stroke();
-      }
-    }
+  function drawRadiator(cx,cy,size,wavelength,phase,red=false){
+    return window.Radiation3D.draw(ctx,{cx,cy,size,...camera,color:state.step===0?[243,199,122]:M.color(wavelength),phase,on:state.source,signals:state.signals,red,time:state.time,speed:C/size,charge:state.step===0,probes:state.step===0&&size>55,drawSource:state.step!==0?view=>dipole3D(view,phase,size):undefined});
   }
-  function incident(cx,cy,left,right,wavelength,phase,amplitude=24){
-    const spatial=147*wavelength/550;ctx.beginPath();ctx.strokeStyle=rgb(M.color(wavelength),.9);ctx.lineWidth=2;
-    for(let x=left;x<=right;x+=2){const y=cy-Math.sin(phase+TAU*(cx-x)/spatial)*amplitude;x===left?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.stroke();
+  function dipole3D(view,phase,size){
+    const p=view.project([0,state.source?-Math.sin(phase)*.24:0,0]),c=view.project([0,0,0]);
+    ctx.beginPath();ctx.fillStyle='rgba(114,225,222,.16)';ctx.strokeStyle='#72e1de';ctx.lineWidth=1.4;ctx.ellipse(p.x,p.y,size*.14,size*.12,0,0,TAU);ctx.fill();ctx.stroke();
+    disk(c.x,c.y,Math.max(5,size*.038),'#f3c77a','+');text('−',p.x,p.y+(p.y>=c.y?size*.14:-size*.1),'#72e1de',Math.max(12,size*.085));
   }
-  function dipole(cx,cy,phase,on=true){
-    const e=on?Math.sin(phase):0,dy=e*25;
-    ctx.beginPath();ctx.fillStyle='rgba(114,225,222,.15)';ctx.strokeStyle='rgba(114,225,222,.8)';ctx.lineWidth=1.4;ctx.ellipse(cx,cy+dy,30,25,0,0,TAU);ctx.fill();ctx.stroke();
-    disk(cx,cy,8,'#f3c77a','+');text('−',cx,cy+dy+(dy>=0?20:-12),'#72e1de',19);
+  function incident3D(view,phase,wavelength,extent){
+    ctx.beginPath();ctx.strokeStyle=rgb(M.color(wavelength),.9);ctx.lineWidth=2;
+    for(let x=-extent;x<=extent;x+=.025){const p=view.project([x,Math.sin(phase-TAU*x/(147*wavelength/550/view.size))*.24,0]);x===-extent?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y);}ctx.stroke();
   }
   function drawSingle(){
-    const cx=width*(state.step===0?.5:.61),cy=height*.5;
-    const scale=Math.min(1.6,Math.max(.38,Math.min(width/400,height/220)));
-    ctx.save();ctx.translate(cx,cy);ctx.scale(scale,scale);
-    radiation(0,0,Math.hypot(width,height)/scale,state.step===0?[243,199,122]:M.color(450));
-    if(state.step===0){disk(0,state.source?Math.sin(state.phase)*30:0,14,'#72e1de','−');}
-    else{
+    const size=Math.max(15,Math.min(width*.24,(height-48)*.26)),cx=width*.5,cy=34+(height-34)*.52;
+    const view=drawRadiator(cx,cy,size,450,state.phase);view.size=size;
+    if(state.step===1){
       if(state.source){
-        incident(0,0,-cx/scale+15,(width-cx)/scale-15,450,state.phase);
-        arrow(-57,0,-57,-Math.sin(state.phase)*43,'#f3c77a');text('電場',-57,-59,'#f3c77a',12);text('光',-cx/scale+38,-38,rgb(M.color(450)),13);
+        incident3D(view,state.phase,450,Math.min(1.9,width/size*.46));
+        const a=view.project([-.43,0,0]),b=view.project([-.43,Math.sin(state.phase)*.36,0]);arrow(a.x,a.y,b.x,b.y,'#f3c77a');
       }
-      dipole(0,0,state.phase,state.source);
     }
-    ctx.restore();
   }
   function drawComparison(){
     const stacked=width<580&&height>width*.65;
     const availableH=height-24,paneW=stacked?width:width/2,paneH=stacked?availableH/2:availableH;
     [650,state.wavelength].forEach((lambda,i)=>{
       const left=stacked?0:i*paneW,top=stacked?i*paneH:0,cx=paneW*.5,cy=paneH*.49;
-      const scale=Math.min(1.25,Math.max(.3,Math.min(paneW/240,(paneH-68)/130)));
+      const size=Math.max(9,Math.min(paneW*.24,(paneH-64)*.26));
       const phase=i===0?TAU*.6*550/650*state.time:state.phase;
-      ctx.save();ctx.beginPath();ctx.rect(left,top,paneW,paneH);ctx.clip();ctx.translate(left+cx,top+cy);ctx.scale(scale,scale);
-      radiation(0,0,Math.hypot(paneW,paneH)/scale,M.color(lambda),i===0);
-      incident(0,0,(-cx+14)/scale,(paneW-cx-14)/scale,lambda,phase,20);dipole(0,0,phase);ctx.restore();
+      ctx.save();ctx.beginPath();ctx.rect(left,top,paneW,paneH);ctx.clip();
+      const view=drawRadiator(left+cx,top+cy,size,lambda,phase,i===0);view.size=size;
+      incident3D(view,phase,lambda,Math.min(1.9,paneW/size*.44));ctx.restore();
     });
   }
   function draw(){if(!width||!height)return;ctx.clearRect(0,0,width,height);ctx.fillStyle='#101f31';ctx.fillRect(0,0,width,height);state.step===2?drawComparison():drawSingle();}
